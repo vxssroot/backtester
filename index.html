@@ -493,8 +493,8 @@
 
     <script>
         // ============================================================
-        //  VOSS STRATEGY SUITE v5.0 - GUARANTEED NUMBERS
-        //  Direct synchronous execution - no async issues
+        //  VOSS STRATEGY SUITE v6.0 - FIXED DATA GENERATION
+        //  Now generates HOURLY candles instead of DAILY
         // ============================================================
 
         // ---------- DOM REFS ----------
@@ -509,47 +509,62 @@
         }
 
         // ============================================================
-        //  REALISTIC DATA GENERATOR (SYNCHRONOUS)
+        //  REALISTIC DATA GENERATOR - HOURLY CANDLES
         // ============================================================
 
         function generateData(pair, years = 10) {
             const candles = [];
-            const days = years * 365;
-            
+
             const startPrices = {
-                'EUR/USD': 1.0850, 'GBP/USD': 1.2650, 'EUR/GBP': 0.8570,
-                'CAD/CHF': 0.6450, 'USD/JPY': 148.50, 'AUD/USD': 0.6550
+                'EUR/USD': 1.0850,
+                'GBP/USD': 1.2650,
+                'EUR/GBP': 0.8570,
+                'CAD/CHF': 0.6450,
+                'USD/JPY': 148.50,
+                'AUD/USD': 0.6550
             };
-            
-            let price = startPrices[pair] || 1.0000;
-            let volatility = pair.includes('JPY') ? 0.0010 : 
-                            pair.includes('GBP') ? 0.0007 : 
-                            pair.includes('CAD') || pair.includes('CHF') ? 0.0004 : 0.0005;
-            
+
+            let price = startPrices[pair] || 1;
+
+            const volatility =
+                pair.includes('JPY') ? 0.001 :
+                pair.includes('GBP') ? 0.0007 :
+                pair.includes('CAD') || pair.includes('CHF') ? 0.0004 :
+                0.0005;
+
             const now = new Date();
-            
-            for (let i = days; i >= 0; i--) {
-                const d = new Date(now);
-                d.setDate(d.getDate() - i);
-                
-                const drift = (Math.random() - 0.5) * volatility * 0.1;
-                const random = (Math.random() - 0.5) * volatility * 2;
-                price = price * (1 + drift + random);
-                
-                const meanPrice = startPrices[pair] || 1.0000;
-                price = price + (meanPrice - price) * 0.001;
-                
-                const dailyRange = price * volatility * (0.5 + Math.random() * 1.5);
-                const open = price * (1 + (Math.random() - 0.5) * 0.0005);
-                const high = Math.max(open, price) + dailyRange * Math.random();
-                const low = Math.min(open, price) - dailyRange * Math.random();
-                const close = price;
-                
-                candles.push({
-                    open, high, low, close,
-                    timestamp: d.toISOString().split('T')[0] + 'T00:00:00'
-                });
+            const totalDays = years * 365;
+
+            for (let d = totalDays; d >= 0; d--) {
+                const date = new Date(now);
+                date.setDate(now.getDate() - d);
+
+                // Generate 24 hourly candles per day
+                for (let hour = 0; hour < 24; hour++) {
+                    const drift = (Math.random() - 0.5) * volatility * 0.2;
+                    price *= (1 + drift);
+
+                    const range = price * volatility * (0.5 + Math.random());
+                    const open = price * (1 + (Math.random() - 0.5) * 0.0005);
+                    const close = open * (1 + (Math.random() - 0.5) * 0.0005);
+                    const high = Math.max(open, close) + range * Math.random();
+                    const low = Math.min(open, close) - range * Math.random();
+
+                    const ts = new Date(date);
+                    ts.setHours(hour, 0, 0, 0);
+
+                    candles.push({
+                        open,
+                        high,
+                        low,
+                        close,
+                        timestamp: ts.toISOString()
+                    });
+
+                    price = close;
+                }
             }
+
             return candles;
         }
 
@@ -567,18 +582,25 @@
             const asianEnd = parseFloat($('asianEnd').value) || 8;
 
             const results = {};
-            let totalTrades = 0, totalWins = 0, totalLosses = 0;
-            let maxStreakOverall = 0, totalReturn = 0;
+            let totalTrades = 0,
+                totalWins = 0,
+                totalLosses = 0;
+            let maxStreakOverall = 0,
+                totalReturn = 0;
 
             for (const pair of pairs) {
                 const candles = generateData(pair, 10);
-                
+
                 const isClassA = ['EUR/USD', 'GBP/USD'].includes(pair);
                 const tpSl = isClassA ? classATpSl : classBTpSl;
                 const buffer = isClassA ? classABuffer : classBBuffer;
 
-                let tradeCount = 0, wins = 0, losses = 0;
-                let streak = 0, maxStreak = 0, pairReturn = 0;
+                let tradeCount = 0,
+                    wins = 0,
+                    losses = 0;
+                let streak = 0,
+                    maxStreak = 0,
+                    pairReturn = 0;
 
                 const days = {};
                 candles.forEach(c => {
@@ -593,6 +615,7 @@
                     const dayCandles = days[day];
                     if (dayCandles.length < 5) continue;
 
+                    // Find Asian session candles (0-8 broker time)
                     const asianCandles = dayCandles.filter(c => {
                         const h = new Date(c.timestamp).getHours();
                         return h >= asianStart && h < asianEnd;
@@ -600,13 +623,15 @@
 
                     if (asianCandles.length < 2) continue;
 
-                    let high = -Infinity, low = Infinity;
+                    let high = -Infinity,
+                        low = Infinity;
                     asianCandles.forEach(c => {
                         if (c.high > high) high = c.high;
                         if (c.low < low) low = c.low;
                     });
 
-                    let breakoutCandle = null, breakoutType = null;
+                    let breakoutCandle = null,
+                        breakoutType = null;
 
                     for (let i = dayCandles.length - 1; i >= 0; i--) {
                         const c = dayCandles[i];
@@ -631,50 +656,96 @@
                     const bufferPips = buffer / pipFactor;
                     const tpSlPips = tpSl / pipFactor;
 
-                    let entryPrice = breakoutType === 'sell' 
-                        ? breakoutCandle.close - bufferPips 
-                        : breakoutCandle.close + bufferPips;
+                    let entryPrice = breakoutType === 'sell' ?
+                        breakoutCandle.close - bufferPips :
+                        breakoutCandle.close + bufferPips;
 
-                    let tpHit = false, slHit = false;
+                    let tpHit = false,
+                        slHit = false;
                     let exitPrice = entryPrice;
                     let exitIndex = -1;
 
                     for (let i = dayCandles.indexOf(breakoutCandle) + 1; i < dayCandles.length; i++) {
                         const c = dayCandles[i];
                         if (breakoutType === 'sell') {
-                            if (c.low <= entryPrice - tpSlPips) { tpHit = true; exitPrice = entryPrice - tpSlPips; exitIndex = i; break; }
-                            if (c.high >= entryPrice + tpSlPips) { slHit = true; exitPrice = entryPrice + tpSlPips; exitIndex = i; break; }
+                            if (c.low <= entryPrice - tpSlPips) {
+                                tpHit = true;
+                                exitPrice = entryPrice - tpSlPips;
+                                exitIndex = i;
+                                break;
+                            }
+                            if (c.high >= entryPrice + tpSlPips) {
+                                slHit = true;
+                                exitPrice = entryPrice + tpSlPips;
+                                exitIndex = i;
+                                break;
+                            }
                         } else {
-                            if (c.high >= entryPrice + tpSlPips) { tpHit = true; exitPrice = entryPrice + tpSlPips; exitIndex = i; break; }
-                            if (c.low <= entryPrice - tpSlPips) { slHit = true; exitPrice = entryPrice - tpSlPips; exitIndex = i; break; }
+                            if (c.high >= entryPrice + tpSlPips) {
+                                tpHit = true;
+                                exitPrice = entryPrice + tpSlPips;
+                                exitIndex = i;
+                                break;
+                            }
+                            if (c.low <= entryPrice - tpSlPips) {
+                                slHit = true;
+                                exitPrice = entryPrice - tpSlPips;
+                                exitIndex = i;
+                                break;
+                            }
                         }
                     }
 
                     if (tpHit) {
-                        wins++; pairReturn += tpSlPips * pipFactor;
+                        wins++;
+                        pairReturn += tpSlPips * pipFactor;
                         streak = streak > 0 ? streak + 1 : 1;
+                        tradeCount++;
                     } else if (slHit) {
-                        losses++; pairReturn -= tpSlPips * pipFactor;
+                        losses++;
+                        pairReturn -= tpSlPips * pipFactor;
                         streak = streak < 0 ? streak - 1 : -1;
-                        
-                        // Trade 2
+                        tradeCount++;
+
+                        // Trade 2: Immediate re-entry same direction
                         for (let i = exitIndex + 1; i < dayCandles.length; i++) {
                             const c = dayCandles[i];
                             if (breakoutType === 'sell') {
-                                if (c.low <= exitPrice - tpSlPips) { wins++; pairReturn += tpSlPips * pipFactor; break; }
-                                if (c.high >= exitPrice + tpSlPips) { losses++; pairReturn -= tpSlPips * pipFactor; break; }
+                                if (c.low <= exitPrice - tpSlPips) {
+                                    wins++;
+                                    pairReturn += tpSlPips * pipFactor;
+                                    tradeCount++;
+                                    break;
+                                }
+                                if (c.high >= exitPrice + tpSlPips) {
+                                    losses++;
+                                    pairReturn -= tpSlPips * pipFactor;
+                                    tradeCount++;
+                                    break;
+                                }
                             } else {
-                                if (c.high >= exitPrice + tpSlPips) { wins++; pairReturn += tpSlPips * pipFactor; break; }
-                                if (c.low <= exitPrice - tpSlPips) { losses++; pairReturn -= tpSlPips * pipFactor; break; }
+                                if (c.high >= exitPrice + tpSlPips) {
+                                    wins++;
+                                    pairReturn += tpSlPips * pipFactor;
+                                    tradeCount++;
+                                    break;
+                                }
+                                if (c.low <= exitPrice - tpSlPips) {
+                                    losses++;
+                                    pairReturn -= tpSlPips * pipFactor;
+                                    tradeCount++;
+                                    break;
+                                }
                             }
                         }
                     } else {
-                        losses++; pairReturn -= tpSlPips * pipFactor;
+                        losses++;
+                        pairReturn -= tpSlPips * pipFactor;
                         streak = streak < 0 ? streak - 1 : -1;
+                        tradeCount++;
                     }
 
                     if (Math.abs(streak) > maxStreak) maxStreak = Math.abs(streak);
-                    tradeCount++;
                 }
 
                 results[pair] = {
@@ -750,8 +821,11 @@
             const direction = $('flipDirection').value;
 
             const results = {};
-            let totalCycles = 0, totalWins = 0, totalLosses = 0;
-            let maxFlipsOverall = 0, totalReturn = 0;
+            let totalCycles = 0,
+                totalWins = 0,
+                totalLosses = 0;
+            let maxFlipsOverall = 0,
+                totalReturn = 0;
             let bestWindowOverall = null;
 
             for (const pair of pairs) {
@@ -761,8 +835,11 @@
                 const slPips = sl / pipFactor;
 
                 let cycles = [];
-                let pairCycles = 0, wins = 0, losses = 0;
-                let pairReturn = 0, maxFlips = 0;
+                let pairCycles = 0,
+                    wins = 0,
+                    losses = 0;
+                let pairReturn = 0,
+                    maxFlips = 0;
 
                 const days = {};
                 candles.forEach(c => {
@@ -779,6 +856,10 @@
 
                     const windowCandles = dayCandles.filter(c => {
                         const h = new Date(c.timestamp).getHours() + new Date(c.timestamp).getMinutes() / 60;
+                        // Handle overnight windows (e.g., 23:15 to 18:00)
+                        if (startTime > endTime) {
+                            return h >= startTime || h <= endTime;
+                        }
                         return h >= startTime && h <= endTime;
                     });
 
@@ -795,7 +876,8 @@
 
                         if (currentDir === 'sell') {
                             if (c.low <= entryPrice - tpPips) {
-                                wins++; pairReturn += tpPips * pipFactor;
+                                wins++;
+                                pairReturn += tpPips * pipFactor;
                                 cycleResult = 'win';
                                 cycleActive = false;
                                 break;
@@ -808,7 +890,8 @@
                             }
                         } else {
                             if (c.high >= entryPrice + tpPips) {
-                                wins++; pairReturn += tpPips * pipFactor;
+                                wins++;
+                                pairReturn += tpPips * pipFactor;
                                 cycleResult = 'win';
                                 cycleActive = false;
                                 break;
@@ -925,14 +1008,14 @@
             const flipMax = flip.maxFlips || 0;
             const flipWinRate = flip.winRate || 0;
 
-            let asianAdvice = asianMaxStreak <= 2 
-                ? `✅ Your max consecutive loss is <span class="highlight">${asianMaxStreak}</span> — excellent!`
-                : `📊 Max consecutive loss: <span class="highlight">${asianMaxStreak}</span>. Try increasing buffer to 15 pips.`;
+            let asianAdvice = asianMaxStreak <= 2 ?
+                `✅ Your max consecutive loss is <span class="highlight">${asianMaxStreak}</span> — excellent!` :
+                `📊 Max consecutive loss: <span class="highlight">${asianMaxStreak}</span>. Try increasing buffer to 15 pips.`;
             $('asianLossAdvice').innerHTML = asianAdvice;
 
-            let flipAdvice = flipMax <= 2
-                ? `✅ Your max flips per cycle is <span class="highlight">${flipMax}</span> — excellent!`
-                : `📊 Max flips per cycle: <span class="highlight">${flipMax}</span>. Try increasing TP to 8 pips.`;
+            let flipAdvice = flipMax <= 2 ?
+                `✅ Your max flips per cycle is <span class="highlight">${flipMax}</span> — excellent!` :
+                `📊 Max flips per cycle: <span class="highlight">${flipMax}</span>. Try increasing TP to 8 pips.`;
             $('flipLossAdvice').innerHTML = flipAdvice;
 
             const bestStrategy = asianWinRate > flipWinRate ? 'Asian Breakout' : 'Flip Strategy';
@@ -979,7 +1062,8 @@
             $('aiAsianRet').textContent = asianRet.toFixed(1) + ' pips';
             $('aiFlipRet').textContent = flipRet.toFixed(1) + ' pips';
 
-            let asianScore = 0, flipScore = 0;
+            let asianScore = 0,
+                flipScore = 0;
             if (asianWr > 50) asianScore += 40;
             if (flipWr > 50) flipScore += 40;
             if (asianRet > 0) asianScore += 30 * Math.min(asianRet / 100, 1);
@@ -1095,25 +1179,32 @@
         });
 
         // ============================================================
-        //  AUTO-RUN ON LOAD
+        //  AUTO-RUN ON LOAD WITH requestAnimationFrame
         // ============================================================
 
-        console.log('🧠 Voss Strategy Suite v5.0 loading...');
-        console.log('📊 Running backtests...');
+        window.addEventListener('load', () => {
+            setStatus('loading', 'Running backtests...');
 
-        // Run both backtests immediately
-        runAsianBacktest();
-        runFlipBacktest();
+            requestAnimationFrame(() => {
+                runAsianBacktest();
 
-        // Run AI after a short delay
-        setTimeout(() => {
-            runAIAnalysis();
-            console.log('✅ All backtests complete!');
-            setStatus('online', '10-year backtest complete');
-            $('footerStatus').textContent = 'Ready - 10-year data loaded';
-        }, 500);
+                requestAnimationFrame(() => {
+                    runFlipBacktest();
 
-        console.log('✅ Numbers will appear automatically');
+                    requestAnimationFrame(() => {
+                        runAIAnalysis();
+                        setStatus('online', '10-year backtest complete');
+                        $('footerStatus').textContent = 'Ready - data loaded';
+                        console.log('✅ All backtests complete!');
+                        console.log('📊 Numbers should now be visible');
+                    });
+                });
+            });
+        });
+
+        console.log('🧠 Voss Strategy Suite v6.0 loaded');
+        console.log('📊 Generating HOURLY candles for 10 years of data');
+        console.log('⏳ Running backtests on page load...');
     </script>
 </body>
 </html>
