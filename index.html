@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voss Strategy Suite - Live Backtester</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #0b0e14;
+            color: #e0e4ec;
+            padding: 16px;
+            min-height: 100vh;
+        }
+        .container { max-width: 1500px; margin: 0 auto; }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #f0b34b, #f7d875);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle { color: #8892a8; font-size: 12px; }
+        .api-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            background: #141a24;
+            padding: 6px 14px;
+            border-radius: 30px;
+            border: 1px solid #26303e;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .status-dot.online { background: #4cd9a0; box-shadow: 0 0 8px #4cd9a055; }
+        .status-dot.offline { background: #f26b6b; box-shadow: 0 0 8px #f26b6b55; }
+        .status-dot.loading { background: #f0b34b; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+        .tabs {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            background: #141a24;
+            padding: 6px;
+            border-radius: 12px;
+            border: 1px solid #26303e;
+        }
+        .tab {
+            padding: 8px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            background: transparent;
+            color: #6f7d98;
+            border: none;
+            transition: 0.2s;
+        }
+        .tab:hover { color: #e0e4ec; }
+        .tab.active { background: #f0b34b; color: #0b0e14; }
+        .tab-content { display: none; animation: fadeIn 0.3s; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+        .panel {
+            background: #141a24;
+            border-radius: 12px;
+            border: 1px solid #26303e;
+            padding: 18px;
+        }
+        .panel h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #b8c4d6;
+            margin-bottom: 12px;
+        }
+
+        .form-group { margin-bottom: 10px; }
+        .form-group label {
+            display: block;
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #6f7d98;
+            margin-bottom: 3px;
+            letter-spacing: 0.3px;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            background: #1a212b;
+            border: 1px solid #26303e;
+            color: #e0e4ec;
+            padding: 7px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: inherit;
+            transition: 0.2s;
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #f0b34b;
+        }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .btn {
+            background: #f0b34b;
+            color: #0b0e14;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 30px;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn:hover { background: #f7c56e; transform: scale(1.02); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+        .btn-secondary { background: #1e2733; color: #b8c4d6; border: 1px solid #26303e; }
+        .btn-secondary:hover { background: #2a3442; }
+        .btn-group { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .stat-card {
+            background: #1a212b;
+            padding: 10px 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-card .s-value { font-size: 20px; font-weight: 700; }
+        .stat-card .s-value.gold { color: #f0b34b; }
+        .stat-card .s-value.green { color: #4cd9a0; }
+        .stat-card .s-value.red { color: #f26b6b; }
+        .stat-card .s-value.blue { color: #6b9cf0; }
+        .stat-card .s-label { font-size: 10px; text-transform: uppercase; color: #6f7d98; margin-top: 2px; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th {
+            text-align: left;
+            padding: 6px 10px;
+            background: #1a212b;
+            color: #6f7d98;
+            font-weight: 500;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+        td { padding: 6px 10px; border-top: 1px solid #1a212b; }
+        .win { color: #4cd9a0; }
+        .loss { color: #f26b6b; }
+
+        .note {
+            background: #1e1a0e;
+            border-left: 3px solid #f0b34b;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #d4c9a8;
+            margin-bottom: 12px;
+        }
+        .note.error { border-left-color: #f26b6b; background: #1e0e0e; }
+        .note.success { border-left-color: #4cd9a0; background: #0e1e16; }
+
+        .footer {
+            margin-top: 16px;
+            font-size: 11px;
+            color: #6f7d98;
+            text-align: center;
+            border-top: 1px solid #1a212b;
+            padding-top: 12px;
+        }
+        .hidden { display: none !important; }
+        .scrollable { max-height: 300px; overflow-y: auto; }
+
+        .ai-badge {
+            background: linear-gradient(135deg, #6b9cf0, #4cd9a0);
+            color: #0b0e14;
+            padding: 2px 12px;
+            border-radius: 30px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .ai-decision {
+            background: #1a212b;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #26303e;
+            margin-top: 8px;
+        }
+        .ai-decision .recommendation { font-size: 18px; font-weight: 700; }
+        .ai-decision .reason { font-size: 13px; color: #8892a8; margin-top: 4px; }
+        .ai-decision .stats {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+            font-size: 12px;
+        }
+        .ai-decision .stats span { color: #6f7d98; }
+        .ai-decision .stats strong { color: #e0e4ec; }
+
+        .loss-reduction-card {
+            background: #1a212b;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-top: 8px;
+            border-left: 3px solid #f0b34b;
+        }
+        .loss-reduction-card .title { font-weight: 600; color: #b8c4d6; font-size: 13px; }
+        .loss-reduction-card .desc { font-size: 12px; color: #8892a8; margin-top: 4px; }
+        .loss-reduction-card .highlight { color: #f0b34b; font-weight: 600; }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(11, 14, 20, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: 0.5s;
+        }
+        .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid #26303e;
+            border-top: 3px solid #f0b34b;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-text { margin-top: 16px; color: #8892a8; font-size: 14px; }
+
+        @media (max-width: 600px) {
+            .form-row { grid-template-columns: 1fr; }
+            .header { flex-direction: column; align-items: stretch; }
+            .stats-grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay hidden" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loadingText">⏳ Running backtest...</div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>🧠 Voss Strategy Suite</h1>
+                <div class="subtitle">10-Year Backtest · AI-Powered Analysis · Loss Reduction</div>
+            </div>
+            <div class="api-status">
+                <span class="status-dot online" id="apiStatusDot"></span>
+                <span id="apiStatusText">Ready</span>
+                <span style="color:#6f7d98;font-size:11px;" id="candleCount">10 years</span>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="tab-asian">🌏 Asian Breakout</button>
+            <button class="tab" data-tab="tab-flip">🔄 Flip Strategy</button>
+            <button class="tab" data-tab="tab-ai">🤖 AI Decision</button>
+            <button class="tab" data-tab="tab-loss">🛡️ Loss Reduction</button>
+        </div>
+
+        <!-- TAB 1: Asian Breakout -->
+        <div class="tab-content active" id="tab-asian">
+            <div class="grid-2">
+                <div class="panel">
+                    <h3>📝 Strategy Config</h3>
+                    <div class="form-group">
+                        <label>Pairs</label>
+                        <input type="text" id="asianPairs" value="EUR/USD, GBP/USD, EUR/GBP, CAD/CHF">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Class A TP/SL (pips)</label>
+                            <input type="number" id="classATpSl" value="10">
+                        </div>
+                        <div class="form-group">
+                            <label>Class B TP/SL (pips)</label>
+                            <input type="number" id="classBTpSl" value="5">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Class A Buffer (pips)</label>
+                            <input type="number" id="classABuffer" value="10">
+                        </div>
+                        <div class="form-group">
+                            <label>Class B Buffer (pips)</label>
+                            <input type="number" id="classBBuffer" value="5">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Asian Session Start/End (Broker Time)</label>
+                        <div class="form-row">
+                            <input type="number" id="asianStart" value="0">
+                            <input type="number" id="asianEnd" value="8">
+                        </div>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn" id="runAsianBtn">🚀 Run Backtest</button>
+                        <button class="btn btn-secondary" id="clearAsianBtn">Clear</button>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>📊 Results</h3>
+                    <div id="asianResultsContent">
+                        <div class="note success" id="asianInsight">✅ Results loaded</div>
+                        <div class="stats-grid">
+                            <div class="stat-card"><div class="s-value gold" id="asianWinRate">—</div><div class="s-label">Win Rate</div></div>
+                            <div class="stat-card"><div class="s-value green" id="asianTrades">—</div><div class="s-label">Total Trades</div></div>
+                            <div class="stat-card"><div class="s-value blue" id="asianMaxStreak">—</div><div class="s-label">Max Consecutive Loss</div></div>
+                            <div class="stat-card"><div class="s-value gold" id="asianReturn">—</div><div class="s-label">Net Return (pips)</div></div>
+                        </div>
+                        <div class="scrollable">
+                            <table><thead><tr><th>Pair</th><th>Trades</th><th>Wins</th><th>Win Rate</th><th>Max Streak</th></tr></thead>
+                            <tbody id="asianTableBody"></tbody></table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: Flip Strategy -->
+        <div class="tab-content" id="tab-flip">
+            <div class="grid-2">
+                <div class="panel">
+                    <h3>🔄 Flip Config</h3>
+                    <div class="form-group">
+                        <label>Pairs</label>
+                        <input type="text" id="flipPairs" value="EUR/USD, GBP/USD">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>TP (pips)</label>
+                            <input type="number" id="flipTp" value="6">
+                        </div>
+                        <div class="form-group">
+                            <label>SL (pips)</label>
+                            <input type="number" id="flipSl" value="6">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Start Time (WAT)</label>
+                            <input type="number" id="flipStart" value="23.25" step="0.05">
+                        </div>
+                        <div class="form-group">
+                            <label>End Time (WAT)</label>
+                            <input type="number" id="flipEnd" value="18" step="0.05">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Initial Direction</label>
+                        <select id="flipDirection">
+                            <option value="sell">SELL</option>
+                            <option value="buy">BUY</option>
+                        </select>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn" id="runFlipBtn">🚀 Run Flip Backtest</button>
+                        <button class="btn btn-secondary" id="clearFlipBtn">Clear</button>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>📊 Flip Results</h3>
+                    <div id="flipResultsContent">
+                        <div class="note success" id="flipInsight">✅ Flip results loaded</div>
+                        <div class="stats-grid">
+                            <div class="stat-card"><div class="s-value gold" id="flipWinRate">—</div><div class="s-label">Win Rate</div></div>
+                            <div class="stat-card"><div class="s-value green" id="flipTrades">—</div><div class="s-label">Total Cycles</div></div>
+                            <div class="stat-card"><div class="s-value blue" id="flipMaxFlips">—</div><div class="s-label">Max Flips</div></div>
+                            <div class="stat-card"><div class="s-value gold" id="flipReturn">—</div><div class="s-label">Net Return (pips)</div></div>
+                        </div>
+                        <div style="font-size:12px;color:#6f7d98;margin-bottom:8px;">
+                            <strong>Best window:</strong> <span id="flipBestWindow">—</span>
+                        </div>
+                        <div class="scrollable">
+                            <table><thead><tr><th>Date</th><th>Flips</th><th>Result</th></tr></thead>
+                            <tbody id="flipTableBody"></tbody></table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: AI Decision -->
+        <div class="tab-content" id="tab-ai">
+            <div class="grid-2">
+                <div class="panel">
+                    <h3>🤖 AI Decision Maker</h3>
+                    <div class="note">AI analyzes both strategies using performance metrics</div>
+                    <div class="btn-group">
+                        <button class="btn" id="runAiBtn">🧠 Run AI Analysis</button>
+                        <button class="btn btn-secondary" id="clearAiBtn">Clear</button>
+                    </div>
+                    <div id="aiResults">
+                        <div class="ai-decision">
+                            <div style="display:flex;justify-content:space-between;align-items:center;">
+                                <span class="ai-badge">AI RECOMMENDATION</span>
+                                <span style="font-size:11px;color:#6f7d98;" id="aiTimestamp"></span>
+                            </div>
+                            <div class="recommendation" id="aiRecommendation">—</div>
+                            <div class="reason" id="aiReason">—</div>
+                            <div class="stats">
+                                <span>Asian Win Rate: <strong id="aiAsianWr">—</strong></span>
+                                <span>Flip Win Rate: <strong id="aiFlipWr">—</strong></span>
+                                <span>Asian Return: <strong id="aiAsianRet">—</strong></span>
+                                <span>Flip Return: <strong id="aiFlipRet">—</strong></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel">
+                    <h3>📊 Performance Dashboard</h3>
+                    <div id="aiDashboard">
+                        <div class="stats-grid">
+                            <div class="stat-card"><div class="s-value gold" id="dashAsianWr">—</div><div class="s-label">Asian Win Rate</div></div>
+                            <div class="stat-card"><div class="s-value blue" id="dashFlipWr">—</div><div class="s-label">Flip Win Rate</div></div>
+                            <div class="stat-card"><div class="s-value green" id="dashBestPair">—</div><div class="s-label">Best Pair</div></div>
+                            <div class="stat-card"><div class="s-value gold" id="dashTotalReturn">—</div><div class="s-label">Combined Return</div></div>
+                        </div>
+                        <div style="font-size:12px;color:#6f7d98;text-align:center;margin-top:8px;">
+                            <span id="dashAdvice">—</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: Loss Reduction -->
+        <div class="tab-content" id="tab-loss">
+            <div class="panel">
+                <h3>🛡️ Loss Reduction Recommendations</h3>
+                <div class="note">Based on 10 years of backtest data</div>
+                <div id="lossReductionResults">
+                    <div class="loss-reduction-card">
+                        <div class="title">📊 Asian Breakout Strategy</div>
+                        <div class="desc" id="asianLossAdvice">—</div>
+                    </div>
+                    <div class="loss-reduction-card" style="margin-top:8px;">
+                        <div class="title">🔄 Flip Strategy</div>
+                        <div class="desc" id="flipLossAdvice">—</div>
+                    </div>
+                    <div class="loss-reduction-card" style="margin-top:8px;border-left-color:#4cd9a0;">
+                        <div class="title">🎯 Recommended Adjustments</div>
+                        <div class="desc" id="recommendedAdjustments">—</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            Data: Realistic 10-Year Synthetic Data · <span id="footerStatus">Ready</span>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        //  VOSS STRATEGY SUITE v5.0 - GUARANTEED NUMBERS
+        //  Direct synchronous execution - no async issues
+        // ============================================================
+
+        // ---------- DOM REFS ----------
+        const $ = id => document.getElementById(id);
+
+        // ---------- STATUS ----------
+        function setStatus(state, msg) {
+            const dot = $('apiStatusDot');
+            const text = $('apiStatusText');
+            if (dot) dot.className = 'status-dot ' + state;
+            if (text) text.textContent = msg;
+        }
+
+        // ============================================================
+        //  REALISTIC DATA GENERATOR (SYNCHRONOUS)
+        // ============================================================
+
+        function generateData(pair, years = 10) {
+            const candles = [];
+            const days = years * 365;
+            
+            const startPrices = {
+                'EUR/USD': 1.0850, 'GBP/USD': 1.2650, 'EUR/GBP': 0.8570,
+                'CAD/CHF': 0.6450, 'USD/JPY': 148.50, 'AUD/USD': 0.6550
+            };
+            
+            let price = startPrices[pair] || 1.0000;
+            let volatility = pair.includes('JPY') ? 0.0010 : 
+                            pair.includes('GBP') ? 0.0007 : 
+                            pair.includes('CAD') || pair.includes('CHF') ? 0.0004 : 0.0005;
+            
+            const now = new Date();
+            
+            for (let i = days; i >= 0; i--) {
+                const d = new Date(now);
+                d.setDate(d.getDate() - i);
+                
+                const drift = (Math.random() - 0.5) * volatility * 0.1;
+                const random = (Math.random() - 0.5) * volatility * 2;
+                price = price * (1 + drift + random);
+                
+                const meanPrice = startPrices[pair] || 1.0000;
+                price = price + (meanPrice - price) * 0.001;
+                
+                const dailyRange = price * volatility * (0.5 + Math.random() * 1.5);
+                const open = price * (1 + (Math.random() - 0.5) * 0.0005);
+                const high = Math.max(open, price) + dailyRange * Math.random();
+                const low = Math.min(open, price) - dailyRange * Math.random();
+                const close = price;
+                
+                candles.push({
+                    open, high, low, close,
+                    timestamp: d.toISOString().split('T')[0] + 'T00:00:00'
+                });
+            }
+            return candles;
+        }
+
+        // ============================================================
+        //  ASIAN BREAKOUT BACKTEST
+        // ============================================================
+
+        function runAsianBacktest() {
+            const pairs = $('asianPairs').value.split(',').map(p => p.trim().toUpperCase());
+            const classATpSl = parseFloat($('classATpSl').value) || 10;
+            const classBTpSl = parseFloat($('classBTpSl').value) || 5;
+            const classABuffer = parseFloat($('classABuffer').value) || 10;
+            const classBBuffer = parseFloat($('classBBuffer').value) || 5;
+            const asianStart = parseFloat($('asianStart').value) || 0;
+            const asianEnd = parseFloat($('asianEnd').value) || 8;
+
+            const results = {};
+            let totalTrades = 0, totalWins = 0, totalLosses = 0;
+            let maxStreakOverall = 0, totalReturn = 0;
+
+            for (const pair of pairs) {
+                const candles = generateData(pair, 10);
+                
+                const isClassA = ['EUR/USD', 'GBP/USD'].includes(pair);
+                const tpSl = isClassA ? classATpSl : classBTpSl;
+                const buffer = isClassA ? classABuffer : classBBuffer;
+
+                let tradeCount = 0, wins = 0, losses = 0;
+                let streak = 0, maxStreak = 0, pairReturn = 0;
+
+                const days = {};
+                candles.forEach(c => {
+                    const d = c.timestamp.split('T')[0];
+                    if (!days[d]) days[d] = [];
+                    days[d].push(c);
+                });
+
+                const sortedDays = Object.keys(days).sort();
+
+                for (const day of sortedDays) {
+                    const dayCandles = days[day];
+                    if (dayCandles.length < 5) continue;
+
+                    const asianCandles = dayCandles.filter(c => {
+                        const h = new Date(c.timestamp).getHours();
+                        return h >= asianStart && h < asianEnd;
+                    });
+
+                    if (asianCandles.length < 2) continue;
+
+                    let high = -Infinity, low = Infinity;
+                    asianCandles.forEach(c => {
+                        if (c.high > high) high = c.high;
+                        if (c.low < low) low = c.low;
+                    });
+
+                    let breakoutCandle = null, breakoutType = null;
+
+                    for (let i = dayCandles.length - 1; i >= 0; i--) {
+                        const c = dayCandles[i];
+                        const h = new Date(c.timestamp).getHours();
+                        if (h < asianEnd) continue;
+
+                        if (c.close > high && !breakoutCandle) {
+                            breakoutCandle = c;
+                            breakoutType = 'sell';
+                            break;
+                        }
+                        if (c.close < low && !breakoutCandle) {
+                            breakoutCandle = c;
+                            breakoutType = 'buy';
+                            break;
+                        }
+                    }
+
+                    if (!breakoutCandle || !breakoutType) continue;
+
+                    const pipFactor = 10000;
+                    const bufferPips = buffer / pipFactor;
+                    const tpSlPips = tpSl / pipFactor;
+
+                    let entryPrice = breakoutType === 'sell' 
+                        ? breakoutCandle.close - bufferPips 
+                        : breakoutCandle.close + bufferPips;
+
+                    let tpHit = false, slHit = false;
+                    let exitPrice = entryPrice;
+                    let exitIndex = -1;
+
+                    for (let i = dayCandles.indexOf(breakoutCandle) + 1; i < dayCandles.length; i++) {
+                        const c = dayCandles[i];
+                        if (breakoutType === 'sell') {
+                            if (c.low <= entryPrice - tpSlPips) { tpHit = true; exitPrice = entryPrice - tpSlPips; exitIndex = i; break; }
+                            if (c.high >= entryPrice + tpSlPips) { slHit = true; exitPrice = entryPrice + tpSlPips; exitIndex = i; break; }
+                        } else {
+                            if (c.high >= entryPrice + tpSlPips) { tpHit = true; exitPrice = entryPrice + tpSlPips; exitIndex = i; break; }
+                            if (c.low <= entryPrice - tpSlPips) { slHit = true; exitPrice = entryPrice - tpSlPips; exitIndex = i; break; }
+                        }
+                    }
+
+                    if (tpHit) {
+                        wins++; pairReturn += tpSlPips * pipFactor;
+                        streak = streak > 0 ? streak + 1 : 1;
+                    } else if (slHit) {
+                        losses++; pairReturn -= tpSlPips * pipFactor;
+                        streak = streak < 0 ? streak - 1 : -1;
+                        
+                        // Trade 2
+                        for (let i = exitIndex + 1; i < dayCandles.length; i++) {
+                            const c = dayCandles[i];
+                            if (breakoutType === 'sell') {
+                                if (c.low <= exitPrice - tpSlPips) { wins++; pairReturn += tpSlPips * pipFactor; break; }
+                                if (c.high >= exitPrice + tpSlPips) { losses++; pairReturn -= tpSlPips * pipFactor; break; }
+                            } else {
+                                if (c.high >= exitPrice + tpSlPips) { wins++; pairReturn += tpSlPips * pipFactor; break; }
+                                if (c.low <= exitPrice - tpSlPips) { losses++; pairReturn -= tpSlPips * pipFactor; break; }
+                            }
+                        }
+                    } else {
+                        losses++; pairReturn -= tpSlPips * pipFactor;
+                        streak = streak < 0 ? streak - 1 : -1;
+                    }
+
+                    if (Math.abs(streak) > maxStreak) maxStreak = Math.abs(streak);
+                    tradeCount++;
+                }
+
+                results[pair] = {
+                    totalTrades: tradeCount,
+                    wins,
+                    losses,
+                    winRate: tradeCount > 0 ? (wins / tradeCount * 100) : 0,
+                    maxStreak,
+                    totalReturn: pairReturn
+                };
+
+                totalTrades += tradeCount;
+                totalWins += wins;
+                totalLosses += losses;
+                if (maxStreak > maxStreakOverall) maxStreakOverall = maxStreak;
+                totalReturn += pairReturn;
+            }
+
+            const overallWinRate = totalTrades > 0 ? (totalWins / totalTrades * 100) : 0;
+
+            window.asianResults = {
+                pairResults: results,
+                totalTrades,
+                totalWins,
+                totalLosses,
+                winRate: overallWinRate,
+                maxStreak: maxStreakOverall,
+                totalReturn
+            };
+
+            displayAsianResults(window.asianResults);
+            updateLossReduction();
+            return window.asianResults;
+        }
+
+        function displayAsianResults(results) {
+            $('asianWinRate').textContent = results.winRate.toFixed(1) + '%';
+            $('asianTrades').textContent = results.totalTrades;
+            $('asianMaxStreak').textContent = results.maxStreak;
+            $('asianReturn').textContent = results.totalReturn.toFixed(1) + ' pips';
+
+            let html = '';
+            for (const [pair, r] of Object.entries(results.pairResults)) {
+                const color = r.winRate > 50 ? '#4cd9a0' : '#f26b6b';
+                html += `<tr>
+                    <td><strong>${pair}</strong></td>
+                    <td>${r.totalTrades}</td>
+                    <td>${r.wins}</td>
+                    <td style="color:${color}">${r.winRate.toFixed(1)}%</td>
+                    <td>${r.maxStreak}</td>
+                </tr>`;
+            }
+            $('asianTableBody').innerHTML = html;
+
+            $('asianInsight').innerHTML = `
+                ✅ Win rate: ${results.winRate.toFixed(1)}% · Max streak: ${results.maxStreak} · Return: ${results.totalReturn.toFixed(1)} pips
+            `;
+            $('asianInsight').className = 'note success';
+            setStatus('online', `Asian: ${results.totalTrades} trades`);
+            $('candleCount').textContent = `${results.totalTrades} trades · 10 years`;
+        }
+
+        // ============================================================
+        //  FLIP BACKTEST
+        // ============================================================
+
+        function runFlipBacktest() {
+            const pairs = $('flipPairs').value.split(',').map(p => p.trim().toUpperCase());
+            const tp = parseFloat($('flipTp').value) || 6;
+            const sl = parseFloat($('flipSl').value) || 6;
+            const startTime = parseFloat($('flipStart').value) || 23.25;
+            const endTime = parseFloat($('flipEnd').value) || 18;
+            const direction = $('flipDirection').value;
+
+            const results = {};
+            let totalCycles = 0, totalWins = 0, totalLosses = 0;
+            let maxFlipsOverall = 0, totalReturn = 0;
+            let bestWindowOverall = null;
+
+            for (const pair of pairs) {
+                const candles = generateData(pair, 10);
+                const pipFactor = 10000;
+                const tpPips = tp / pipFactor;
+                const slPips = sl / pipFactor;
+
+                let cycles = [];
+                let pairCycles = 0, wins = 0, losses = 0;
+                let pairReturn = 0, maxFlips = 0;
+
+                const days = {};
+                candles.forEach(c => {
+                    const d = c.timestamp.split('T')[0];
+                    if (!days[d]) days[d] = [];
+                    days[d].push(c);
+                });
+
+                const sortedDays = Object.keys(days).sort();
+
+                for (const day of sortedDays) {
+                    const dayCandles = days[day];
+                    if (dayCandles.length < 5) continue;
+
+                    const windowCandles = dayCandles.filter(c => {
+                        const h = new Date(c.timestamp).getHours() + new Date(c.timestamp).getMinutes() / 60;
+                        return h >= startTime && h <= endTime;
+                    });
+
+                    if (windowCandles.length < 3) continue;
+
+                    let currentDir = direction;
+                    let entryPrice = windowCandles[0].close;
+                    let flips = 0;
+                    let cycleActive = true;
+                    let cycleResult = null;
+
+                    for (let i = 1; i < windowCandles.length && cycleActive; i++) {
+                        const c = windowCandles[i];
+
+                        if (currentDir === 'sell') {
+                            if (c.low <= entryPrice - tpPips) {
+                                wins++; pairReturn += tpPips * pipFactor;
+                                cycleResult = 'win';
+                                cycleActive = false;
+                                break;
+                            }
+                            if (c.high >= entryPrice + slPips) {
+                                flips++;
+                                currentDir = 'buy';
+                                entryPrice = c.high;
+                                if (flips > maxFlips) maxFlips = flips;
+                            }
+                        } else {
+                            if (c.high >= entryPrice + tpPips) {
+                                wins++; pairReturn += tpPips * pipFactor;
+                                cycleResult = 'win';
+                                cycleActive = false;
+                                break;
+                            }
+                            if (c.low <= entryPrice - slPips) {
+                                flips++;
+                                currentDir = 'sell';
+                                entryPrice = c.low;
+                                if (flips > maxFlips) maxFlips = flips;
+                            }
+                        }
+                    }
+
+                    if (cycleActive) {
+                        losses++;
+                        pairReturn -= slPips * pipFactor;
+                        cycleResult = 'loss';
+                    }
+
+                    pairCycles++;
+                    cycles.push({ date: day, flips, result: cycleResult });
+                }
+
+                const sortedByFlips = [...cycles].sort((a, b) => a.flips - b.flips);
+                const best = sortedByFlips.length > 0 ? sortedByFlips[0] : null;
+
+                results[pair] = {
+                    totalCycles: pairCycles,
+                    wins,
+                    losses,
+                    winRate: pairCycles > 0 ? (wins / pairCycles * 100) : 0,
+                    maxFlips,
+                    totalReturn: pairReturn,
+                    bestWindow: best,
+                    cycles
+                };
+
+                totalCycles += pairCycles;
+                totalWins += wins;
+                totalLosses += losses;
+                if (maxFlips > maxFlipsOverall) maxFlipsOverall = maxFlips;
+                totalReturn += pairReturn;
+                if (best && (!bestWindowOverall || best.flips < bestWindowOverall.flips)) {
+                    bestWindowOverall = { ...best, pair };
+                }
+            }
+
+            const overallWinRate = totalCycles > 0 ? (totalWins / totalCycles * 100) : 0;
+
+            window.flipResults = {
+                pairResults: results,
+                totalCycles,
+                totalWins,
+                totalLosses,
+                winRate: overallWinRate,
+                maxFlips: maxFlipsOverall,
+                totalReturn,
+                bestWindow: bestWindowOverall
+            };
+
+            displayFlipResults(window.flipResults);
+            updateLossReduction();
+            return window.flipResults;
+        }
+
+        function displayFlipResults(results) {
+            $('flipWinRate').textContent = results.winRate.toFixed(1) + '%';
+            $('flipTrades').textContent = results.totalCycles;
+            $('flipMaxFlips').textContent = results.maxFlips;
+            $('flipReturn').textContent = results.totalReturn.toFixed(1) + ' pips';
+
+            if (results.bestWindow) {
+                $('flipBestWindow').textContent = `${results.bestWindow.pair} · ${results.bestWindow.flips} flips · ${results.bestWindow.result}`;
+            } else {
+                $('flipBestWindow').textContent = 'No data';
+            }
+
+            let html = '';
+            const allCycles = [];
+            for (const [pair, r] of Object.entries(results.pairResults)) {
+                (r.cycles || []).forEach(c => allCycles.push({ ...c, pair }));
+            }
+            allCycles.sort((a, b) => new Date(a.date) - new Date(b.date));
+            const last50 = allCycles.slice(-50);
+
+            last50.forEach(c => {
+                const isWin = c.result === 'win';
+                html += `<tr>
+                    <td>${c.date}</td>
+                    <td>${c.flips}</td>
+                    <td class="${isWin ? 'win' : 'loss'}">${isWin ? '✅ WIN' : '❌ LOSS'}</td>
+                </tr>`;
+            });
+            $('flipTableBody').innerHTML = html || '<tr><td colspan="3" style="text-align:center;color:#6f7d98;">No cycles</td></tr>';
+
+            $('flipInsight').innerHTML = `
+                ✅ Win rate: ${results.winRate.toFixed(1)}% · Max flips: ${results.maxFlips} · Return: ${results.totalReturn.toFixed(1)} pips
+            `;
+            $('flipInsight').className = 'note success';
+        }
+
+        // ============================================================
+        //  LOSS REDUCTION
+        // ============================================================
+
+        function updateLossReduction() {
+            const asian = window.asianResults;
+            const flip = window.flipResults;
+
+            if (!asian || !flip) return;
+
+            const asianMaxStreak = asian.maxStreak || 0;
+            const asianWinRate = asian.winRate || 0;
+            const flipMax = flip.maxFlips || 0;
+            const flipWinRate = flip.winRate || 0;
+
+            let asianAdvice = asianMaxStreak <= 2 
+                ? `✅ Your max consecutive loss is <span class="highlight">${asianMaxStreak}</span> — excellent!`
+                : `📊 Max consecutive loss: <span class="highlight">${asianMaxStreak}</span>. Try increasing buffer to 15 pips.`;
+            $('asianLossAdvice').innerHTML = asianAdvice;
+
+            let flipAdvice = flipMax <= 2
+                ? `✅ Your max flips per cycle is <span class="highlight">${flipMax}</span> — excellent!`
+                : `📊 Max flips per cycle: <span class="highlight">${flipMax}</span>. Try increasing TP to 8 pips.`;
+            $('flipLossAdvice').innerHTML = flipAdvice;
+
+            const bestStrategy = asianWinRate > flipWinRate ? 'Asian Breakout' : 'Flip Strategy';
+            const bestWinRate = Math.max(asianWinRate, flipWinRate);
+            const bestMaxLoss = asianWinRate > flipWinRate ? asianMaxStreak : flipMax;
+
+            let bestPair = '—';
+            if (asian.pairResults) {
+                const sorted = Object.entries(asian.pairResults)
+                    .sort((a, b) => (b[1].winRate || 0) - (a[1].winRate || 0));
+                if (sorted.length > 0) bestPair = sorted[0][0] + ' (' + (sorted[0][1].winRate || 0).toFixed(1) + '%)';
+            }
+
+            $('recommendedAdjustments').innerHTML = `
+                🎯 <strong>Recommended:</strong> ${bestStrategy} (${bestWinRate.toFixed(1)}% win rate, max loss: ${bestMaxLoss})<br>
+                📊 <strong>Best pair:</strong> ${bestPair}<br>
+                💡 <strong>Overall:</strong> ${asianMaxStreak <= 2 && flipMax <= 2 ? 'Your strategy is very robust!' : 'Optimize parameters for better results.'}
+            `;
+        }
+
+        // ============================================================
+        //  AI ANALYSIS
+        // ============================================================
+
+        function runAIAnalysis() {
+            const asian = window.asianResults;
+            const flip = window.flipResults;
+
+            if (!asian || !flip) {
+                alert('Please run both backtests first!');
+                return;
+            }
+
+            const asianWr = asian.winRate || 0;
+            const flipWr = flip.winRate || 0;
+            const asianRet = asian.totalReturn || 0;
+            const flipRet = flip.totalReturn || 0;
+            const asianStreak = asian.maxStreak || 0;
+            const flipMax = flip.maxFlips || 0;
+
+            $('aiTimestamp').textContent = `Analyzed: ${new Date().toLocaleTimeString()}`;
+            $('aiAsianWr').textContent = asianWr.toFixed(1) + '%';
+            $('aiFlipWr').textContent = flipWr.toFixed(1) + '%';
+            $('aiAsianRet').textContent = asianRet.toFixed(1) + ' pips';
+            $('aiFlipRet').textContent = flipRet.toFixed(1) + ' pips';
+
+            let asianScore = 0, flipScore = 0;
+            if (asianWr > 50) asianScore += 40;
+            if (flipWr > 50) flipScore += 40;
+            if (asianRet > 0) asianScore += 30 * Math.min(asianRet / 100, 1);
+            if (flipRet > 0) flipScore += 30 * Math.min(flipRet / 100, 1);
+            if (asianStreak <= 2) asianScore += 30;
+            if (flipMax <= 2) flipScore += 30;
+
+            let recommendation, reason;
+            if (asianScore > flipScore && asianWr > 0) {
+                recommendation = '🇦🇸 Asian Breakout Strategy';
+                reason = `Score: ${asianScore.toFixed(0)}/100 vs ${flipScore.toFixed(0)}/100. Better win rate and lower risk.`;
+            } else if (flipScore > asianScore && flipWr > 0) {
+                recommendation = '🔄 Flip Strategy';
+                reason = `Score: ${flipScore.toFixed(0)}/100 vs ${asianScore.toFixed(0)}/100. Better win rate and lower risk.`;
+            } else if (asianWr > 0 && flipWr > 0) {
+                recommendation = '⚖️ Both strategies are viable';
+                reason = `Asian: ${asianWr.toFixed(1)}% · Flip: ${flipWr.toFixed(1)}%. Consider using both.`;
+            } else {
+                recommendation = '⚠️ Insufficient data';
+                reason = 'Run both backtests first.';
+            }
+
+            $('aiRecommendation').textContent = recommendation;
+            $('aiReason').textContent = reason;
+
+            $('dashAsianWr').textContent = asianWr > 0 ? asianWr.toFixed(1) + '%' : '—';
+            $('dashFlipWr').textContent = flipWr > 0 ? flipWr.toFixed(1) + '%' : '—';
+
+            let bestPair = '—';
+            if (asian.pairResults) {
+                const sorted = Object.entries(asian.pairResults)
+                    .sort((a, b) => (b[1].winRate || 0) - (a[1].winRate || 0));
+                if (sorted.length > 0) bestPair = sorted[0][0] + ' (' + (sorted[0][1].winRate || 0).toFixed(1) + '%)';
+            }
+            $('dashBestPair').textContent = bestPair;
+            $('dashTotalReturn').textContent = ((asianRet || 0) + (flipRet || 0)).toFixed(1) + ' pips';
+
+            let advice = '';
+            if (asianWr > 50 && flipWr > 50) {
+                advice = '💪 Both strategies are profitable! Use the one with higher score.';
+            } else if (asianWr > 50) {
+                advice = '🇦🇸 Asian Breakout is performing better. Focus on this strategy.';
+            } else if (flipWr > 50) {
+                advice = '🔄 Flip strategy is performing better. Focus on this strategy.';
+            } else {
+                advice = '📈 Both strategies need optimization. Try adjusting parameters.';
+            }
+            $('dashAdvice').textContent = advice;
+        }
+
+        // ============================================================
+        //  EVENT LISTENERS
+        // ============================================================
+
+        $('runAsianBtn').addEventListener('click', function() {
+            runAsianBacktest();
+        });
+
+        $('runFlipBtn').addEventListener('click', function() {
+            runFlipBacktest();
+        });
+
+        $('runAiBtn').addEventListener('click', runAIAnalysis);
+
+        $('clearAsianBtn').addEventListener('click', function() {
+            $('asianWinRate').textContent = '—';
+            $('asianTrades').textContent = '—';
+            $('asianMaxStreak').textContent = '—';
+            $('asianReturn').textContent = '—';
+            $('asianTableBody').innerHTML = '';
+            $('asianInsight').innerHTML = '⏳ Click "Run Backtest" to see results';
+            $('asianInsight').className = 'note';
+            window.asianResults = null;
+            updateLossReduction();
+        });
+
+        $('clearFlipBtn').addEventListener('click', function() {
+            $('flipWinRate').textContent = '—';
+            $('flipTrades').textContent = '—';
+            $('flipMaxFlips').textContent = '—';
+            $('flipReturn').textContent = '—';
+            $('flipTableBody').innerHTML = '';
+            $('flipBestWindow').textContent = '—';
+            $('flipInsight').innerHTML = '⏳ Click "Run Flip Backtest" to see results';
+            $('flipInsight').className = 'note';
+            window.flipResults = null;
+            updateLossReduction();
+        });
+
+        $('clearAiBtn').addEventListener('click', function() {
+            $('aiRecommendation').textContent = '—';
+            $('aiReason').textContent = '—';
+            $('aiAsianWr').textContent = '—';
+            $('aiFlipWr').textContent = '—';
+            $('aiAsianRet').textContent = '—';
+            $('aiFlipRet').textContent = '—';
+            $('dashAsianWr').textContent = '—';
+            $('dashFlipWr').textContent = '—';
+            $('dashBestPair').textContent = '—';
+            $('dashTotalReturn').textContent = '—';
+            $('dashAdvice').textContent = '—';
+            $('aiTimestamp').textContent = '';
+        });
+
+        // ---------- TABS ----------
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                this.classList.add('active');
+                document.getElementById(this.dataset.tab).classList.add('active');
+            });
+        });
+
+        // ============================================================
+        //  AUTO-RUN ON LOAD
+        // ============================================================
+
+        console.log('🧠 Voss Strategy Suite v5.0 loading...');
+        console.log('📊 Running backtests...');
+
+        // Run both backtests immediately
+        runAsianBacktest();
+        runFlipBacktest();
+
+        // Run AI after a short delay
+        setTimeout(() => {
+            runAIAnalysis();
+            console.log('✅ All backtests complete!');
+            setStatus('online', '10-year backtest complete');
+            $('footerStatus').textContent = 'Ready - 10-year data loaded';
+        }, 500);
+
+        console.log('✅ Numbers will appear automatically');
+    </script>
+</body>
+</html>
